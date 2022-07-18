@@ -1,0 +1,110 @@
+Sub File_slicer()
+'макрос "нарезает" общий массив по значениям ОДНОГО столбца на основании заданного списка уникальных значений
+'и сохраняет их по тому же пути, где хранится исходный файл
+
+
+'ОБЪЯВЛЕНИЕ ПЕРЕМЕННЫХ
+Dim wb_summary, wb_personal As Workbook 'переменные задают 2 книги - текущая и её будущая копия
+Dim ws As Worksheet 'переменная для выбора листа с общим массивом
+Dim fio_range, analyzed_range As Range 'переменная для задания списка уникальных значений (ФИО) и столбца для анализа
+Dim firstrow, lastrow As Long 'переменная для поиска первой и последней строки в анализируемом столбце
+Dim col_number As Integer 'номер анализируемого столбца
+Dim path_summary, path_personal, name_personal, name_personal_short As String 'пути и имена к книгам
+Dim fio, email_adress As String 'значения ячеек из уникального списка, которые перебираем
+Dim analyzed_sheet_number As Integer 'порядковый номер листа с массивом
+Dim msg_subj, msg_body As String 'переменные с темой и текстом письма
+
+Set wb_summary = ThisWorkbook 'обозначить текущую книгу как общую
+path_summary = ThisWorkbook.Path 'путь к текущей книге
+path_personal = path_summary & "\sliced_files" & "_" & Year(Date) & "-" & Month(Date) & "-" & Day(Date) & "-" & Hour(Time) & "-" & Minute(Time) & "-" & Second(Time) & "\"
+'копия будет лежать по тому же адресу во вложенной папке sliced_files + дата + время
+
+'СОЗДАНИЕ КАТАЛОГА
+ChDir path_summary  'переход в папку с исходным файлом
+MkDir path_personal 'создание внутри неё папки для копий
+
+'ДИАЛОГ С ПОЛЬЗОВАТЕЛЕМ
+
+For Each ws In wb_summary.Worksheets
+ws.Visible = True  'на всякий случай отображаем все листы (чтобы не ошибиться с номером листа с массивом)
+Next
+
+'выводим окно, которое спрашивает порядковый номер листа с общим массивом
+analyzed_sheet_number = Application.InputBox("введите порядковый номер ЛИСТА для анализа", "выбор ЛИСТА для анализа", , , , , , 1)
+wb_summary.Worksheets(analyzed_sheet_number).Activate
+wb_summary.Worksheets(analyzed_sheet_number).Cells.EntireColumn.Hidden = False
+
+'выводим окно для выбора диапазона для анализа (в рамках одного столбца)
+Worksheets(analyzed_sheet_number).Activate
+Set analyzed_range = Application.InputBox("выделите диапазон для анализа (без шапки)", "выбор диапазона для анализа", , , , , , 8)
+
+firstrow = analyzed_range.Row 'поиск №первой строки в анализируемом диапазоне
+lastrow = analyzed_range.Rows.Count + firstrow - 1 'поиск №последней строки в анализируемом диапазоне
+col_number = analyzed_range.Column 'поиск №столбца, который анализируем
+
+'выводим окна для выбора уникального списка значений, для которых нужна "нарезка"
+Worksheets("Список_без_дубликатов").Activate
+Set fio_range = Application.InputBox("выделите список УНИКАЛЬНЫХ ФИО (без шапки)", "выбор диапазона с ФИО", , , , , , 8)
+
+msg_subj = Application.InputBox("Укажите тему письма", "Тема письма", , , , , , 2)
+msg_body = Application.InputBox("Введите текст письма", "Текст письма", , , , , , 2)
+
+'ЦИКЛ ОБРАБОТКИ
+Application.ScreenUpdating = False
+Application.DisplayAlerts = False
+Application.AskToUpdateLinks = False
+
+Dim outlookApp As Outlook.Application
+Dim myMail As Outlook.MailItem
+Dim emailbody, Source_File As String
+Set outlookApp = New Outlook.Application
+
+For Each Cell In fio_range 'перебираем уникальные значения признака (напр. ФИО)
+    fio = Cell
+    If Not fio Like "*акансия*" Then 'если Вакансия - то пропускаем
+        email_adress = Cell.Offset(0, 1)
+        name_personal = path_personal & fio & ".xlsm" 'полное имя, которое будет присвоено копии
+        name_personal_short = fio & ".xlsm" 'краткое имя, которое будет присвоено копии
+        
+        wb_summary.SaveCopyAs Filename:=name_personal 'создаем копию исходного файла
+        Application.Workbooks.Open Filename:=name_personal 'открываем её
+        
+        Set wb_personal = Workbooks(name_personal_short)
+        wb_personal.Activate 'на всякий случай активируем копию, чтобы дальнейший код точно отработал в ней, а не в исходном файле
+        Worksheets(analyzed_sheet_number).Activate 'активируем нужный нам лист с массивом
+        
+            For i = lastrow To firstrow Step -1 'просматриваем анлизируемый диапазон в обратном порядке, с конца
+                If Not Application.Proper(Cells(i, col_number).Text) = fio Then
+                Cells(i, col_number).EntireRow.Delete 'если строка не содержит нужный признак (фамилию), удаляем
+                End If
+            Next
+            
+        ActiveWindow.ScrollRow = 1
+        Worksheets("Список_без_дубликатов").Delete
+        wb_personal.Save
+        
+        Set myMail = outlookApp.CreateItem(olMailItem)
+        emailbody = msg_body
+        Source_File = name_personal
+        
+        With myMail
+            myMail.Recipients.Add email_adress
+            myMail.Subject = msg_subj & " - " & fio
+            myMail.HTMLBody = emailbody
+            myMail.Attachments.Add Source_File
+            'myMail.Display
+            myMail.Send
+        End With
+    
+        wb_personal.Close
+    Else
+    End If
+Next
+Application.ScreenUpdating = True
+Application.DisplayAlerts = True
+Application.AskToUpdateLinks = True
+    
+End Sub
+
+
+

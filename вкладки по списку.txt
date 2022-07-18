@@ -1,0 +1,33 @@
+Sub Clusters_report() 'создаёт вкладки со сводной таблицей по выделенному списку кластеров
+Dim ws_template, ws As Worksheet
+Dim rng As Range
+
+ThisWorkbook.Worksheets("ИТОГ").Activate
+Set rng = Application.InputBox("select range with TOP clusters names", , , , , , , 8)
+
+Dim i As Integer
+
+Set ws_template = Worksheets("СВОД КЛАСТЕРЫ")
+    i = Worksheets("ИТОГ").Index
+
+    For Each cell In rng
+        cluster_name = cell.Text
+        cluster_name_2 = Replace(cluster_name, "ЛЕЧЕНИЕ И ПРОФИЛАКТИКА", "ЛЕЧ. И ПРОФ.")
+        cluster_name_31 = Left(cluster_name_2, 31)
+        
+        cluster_color = cell.Interior.Color
+        
+        ws_template.Copy After:=Sheets(i)
+        
+        Set ws = Worksheets(i + 1)
+        ws.Name = cluster_name_31
+        ws.Tab.Color = cluster_color
+        With ActiveSheet.PivotTables("Сводная таблица1").PivotFields("Кластер Товара")
+            .ClearAllFilters
+            .PivotFilters.Add2 Type:=xlCaptionEquals, Value1:=cluster_name
+        End With
+        i = i + 1
+    Next
+
+End Sub
+

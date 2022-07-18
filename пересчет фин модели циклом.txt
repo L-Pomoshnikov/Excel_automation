@@ -1,0 +1,84 @@
+Sub MA_calculate_elasticity() 'пересчет чувствительности
+
+'РАБОЧИЕ ЛИСТЫ
+Dim summary_ws, objects_ws As Worksheet
+Set summary_ws = ThisWorkbook.ActiveSheet
+Set objects_ws = ThisWorkbook.Worksheets("Объекты") 'краткий псевдоним для удобства
+
+'ПЕРЕМЕННЫЕ И ОБЪЕКТЫ
+Dim NPV_table, EBITDA_table As Range 'таблицы с показателями NPV и EBITDA
+Dim Markup_range, Revenue_range As Range 'диапазоны со шкалой показателей
+Dim Objects_R, Objects_M As Range 'ячейки для подстановки значений на листе Объекты
+Dim EBITDA_offset_r, EBITDA_offset_c As Integer 'расстояние между таблицами NPV и EBITDA
+Dim Markup_fr, Markup_lr, Markup_fc, Markup_lc, Revenue_fr, Revenue_lr, Revenue_fc, Revenue_lc As Integer
+Dim Revenue_BASE, Revenue, Revenue_step As Double 'Базовое значение для шкалы выручки, текущее и шаг
+Dim Markup_BASE, Markup, Markup_step As Double 'Базовое значение для шкалы наценки, текущее и шаг
+Dim NPV, EBITDA As Double 'Текущее значение NPV и EBITDA
+Dim x, y As Double 'координаты для вставки значений NPV и EBITDA в таблицы
+
+'ПРИСВОЕНИЕ ЗНАЧЕНИЙ
+Set NPV_table = summary_ws.Range("E72:J77") 'таблица NPV
+    Markup_fr = NPV_table(1).Row
+    Markup_lr = Markup_fr
+    Markup_fc = NPV_table(1).Column + 1
+    Markup_lc = Markup_fc + NPV_table.Columns.Count - 2
+    Revenue_fr = NPV_table(1).Row + 1
+    Revenue_lr = Revenue_fr + NPV_table.Rows.Count - 2
+    Revenue_fc = NPV_table(1).Column
+    Revenue_lc = Revenue_fc
+
+'ПРИСВОЕНИЕ ЗНАЧЕНИЙ
+Set EBITDA_table = summary_ws.Range("E80:J85") 'таблица EBITDA
+    EBITDA_offset_r = EBITDA_table(1).Row - NPV_table(1).Row
+    EBITDA_offset_c = EBITDA_table(1).Column - NPV_table(1).Column
+
+Set Markup_range = Range(Cells(Markup_fr, Markup_fc), Cells(Markup_lr, Markup_lc)) 'назначается массив со шкалой наценки
+Set Revenue_range = Range(Cells(Revenue_fr, Revenue_fc), Cells(Revenue_lr, Revenue_lc)) 'назначается массив со шкалой выручки
+
+'ОБНУЛЯЕМ МОДЕЛЬ
+Set Objects_R = objects_ws.Range("O2")
+Set Objects_M = objects_ws.Range("BU2")
+    Objects_M.Value = 0
+    Objects_R.Value = 0
+    Calculate
+    NPV_table(1).Offset(1, 1).Resize((NPV_table.Rows.Count - 1), (NPV_table.Columns.Count - 1)).ClearContents
+    EBITDA_table(1).Offset(1, 1).Resize((EBITDA_table.Rows.Count - 1), (EBITDA_table.Columns.Count - 1)).ClearContents
+    
+'ФИКСИРУЕМ БАЗОВЫЕ ПАРАМЕТРЫ
+    Markup_BASE = summary_ws.Range("C52").Value
+    Revenue_BASE = 1
+
+'ПЕРЕСЧЕТ МОДЕЛИ
+For Each rv In Revenue_range
+For Each mk In Markup_range
+
+    Revenue = rv.Value
+    Markup = mk.Value
+    
+    Revenue_step = Revenue - Revenue_BASE 'шаг шкалы по выручке
+    Markup_step = Markup - Markup_BASE 'шаг шкалы по наценке
+    
+    x = mk.Column
+    y = rv.Row
+    Objects_R.Value = Revenue_step
+    Objects_M.Value = Markup_step
+    
+    Calculate 'пересчёт всей книги
+    
+    NPV = summary_ws.Range("G67").Value
+    EBITDA = summary_ws.Range("O48").Value
+    
+    Objects_M.Value = 0 'не забываем обнулить шаг
+    Objects_R.Value = 0 'не забываем обнулить шаг
+
+'ЗАПИСЬ РЕЗУЛЬТАТОВ
+    With summary_ws
+        .Activate
+        .Cells(y, x) = NPV
+        .Cells(y + EBITDA_offset_r, x + EBITDA_offset_c) = EBITDA
+    End With
+    
+Next
+Next
+
+End Sub
